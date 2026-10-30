@@ -1,0 +1,48 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>InkPad</title>
+<style>
+:root{--bg:#2a2a2a;--bar:#1f1f1f;--fg:#eee;--ac:#1a9bc4}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;overflow:hidden}
+button,select,input{font:inherit;color:var(--fg)}
+button{background:none;border:0;cursor:pointer;font-size:22px}
+#home,#editor{position:absolute;inset:0;display:none}
+#home{padding:24px;overflow:auto}
+#home header{display:flex;align-items:baseline;gap:14px;margin-bottom:20px}
+#home h1{margin:0;font-size:26px}#home span{opacity:.6}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,170px);gap:24px}
+.card{text-align:center;font-size:14px}
+.card .th{height:215px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer}
+.card .th img{width:100%;height:100%;object-fit:cover;object-position:top}
+.card.new .th{background:#27393f;border:2px dashed var(--ac);color:var(--ac);font-size:56px}
+.card small{display:block;opacity:.6}.card button{font-size:16px;padding:4px 10px}
+#editor{flex-direction:row}
+#side{width:60px;background:var(--bar);display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0;overflow-y:auto}
+.b{width:46px;height:46px;border-radius:10px}.b.on{background:#33566a}
+hr{width:36px;border:0;border-top:1px solid #444;margin:4px 0}
+.dot{width:26px;height:26px;border-radius:7px;margin:5px;border:2px solid transparent;display:block}.dot.on{border-color:#fff}
+#side input[type=color]{width:34px;height:34px;border:0;background:none;padding:0}
+#main{flex:1;display:flex;flex-direction:column;min-width:0}
+#top{height:48px;background:var(--bar);display:flex;align-items:center;gap:8px;padding:0 12px}
+#top .sp{flex:1}#top select{background:#333;border:0;border-radius:6px;padding:6px}
+#ttl{font-weight:600}
+#scroll{flex:1;overflow:auto;background:#555;padding:12px 0}
+#cv{display:block;margin:0 auto;width:min(100%,1100px);aspect-ratio:1240/1754;background:#fff;touch-action:none}
+#pop,#pop2{display:none;position:absolute;left:66px;top:54px;width:330px;max-height:90%;overflow:auto;background:var(--bar);border-radius:14px;padding:14px;box-shadow:0 6px 24px #000a;z-index:5}
+#pop h4,#pop2 h4{margin:12px 0 6px;font-size:13px;opacity:.7;font-weight:500}
+#pop input[type=range],#pop2 input[type=range]{width:100%}
+.o{font-size:14px;border:1px solid #444;border-radius:8px;padding:8px 10px;margin:0 6px 6px 0}.o.on{border-color:var(--ac);background:#1a3a47}
+#modal{display:none;position:absolute;inset:0;background:#000a;align-items:center;justify-content:center;z-index:9}
+.box{background:var(--bar);border-radius:14px;padding:20px;width:min(92%,460px)}
+.box input{width:100%;background:#333;border:0;border-radius:8px;padding:10px;margin:8px 0}
+#tp{display:flex;gap:10px;margin:10px 0;flex-wrap:wrap}
+.tpl{font-size:12px;text-align:center;padding:6px;border:2px solid transparent;border-radius:8px}.tpl.on{border-color:var(--ac)}
+.tpl canvas{display:block;width:80px;height:113px;margin-bottom:4px}
+.row{display:flex;justify-content:flex-end;gap:10px}.row button{font-size:16px;padding:10px 16px}.pri{background:var(--ac);border-radius:8px}
+</style></head><body>
+<div id="home"><header><h1>✦ InkPad</h1><span>Offline · páginas ilimitadas</span></header><div id="grid"></div></div>
+<div id="editor">
+ <div id="side"></div>
+ <div id="main">
+  <div id="top">
