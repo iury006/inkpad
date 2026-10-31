@@ -1,5 +1,11 @@
 {
-  "appId": "com.inkpad.app",
-  "appName": "InkPad",
-  "webDir": "www"
+  "name": "inkpad",
+  "version": "1.1.0",
+  "private": true,
+  "dependencies": {
+    "@capacitor/android": "^6.1.0",
+    "@capacitor/cli": "^6.1.0",
+    "@capacitor/core": "^6.1.0",
+    "pdfjs-dist": "3.11.174"
+  }
 }
