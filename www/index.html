@@ -3,7 +3,7 @@
 <title>InkPad</title>
 <style>
 :root{--bg:#2a2a2a;--bar:#1f1f1f;--fg:#eee;--ac:#1a9bc4}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-touch-callout:none}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;overflow:hidden}
 button,select,input{font:inherit;color:var(--fg)}
 button{background:none;border:0;cursor:pointer;font-size:22px}
@@ -14,7 +14,7 @@ button{background:none;border:0;cursor:pointer;font-size:22px}
 #grid{display:grid;grid-template-columns:repeat(auto-fill,170px);gap:24px}
 .card{text-align:center;font-size:14px}
 .card .th{height:215px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer}
-.card .th img{width:100%;height:100%;object-fit:cover;object-position:top}
+.card .th img{width:100%;height:100%;object-fit:contain}
 .card.new .th{background:#27393f;border:2px dashed var(--ac);color:var(--ac);font-size:56px}
 .card small{display:block;opacity:.6}.card button{font-size:16px;padding:4px 10px}
 #editor{flex-direction:row}
@@ -24,16 +24,17 @@ hr{width:36px;border:0;border-top:1px solid #444;margin:4px 0}
 .dot{width:26px;height:26px;border-radius:7px;margin:5px;border:2px solid transparent;display:block}.dot.on{border-color:#fff}
 #side input[type=color]{width:34px;height:34px;border:0;background:none;padding:0}
 #main{flex:1;display:flex;flex-direction:column;min-width:0}
-#top{height:48px;background:var(--bar);display:flex;align-items:center;gap:8px;padding:0 12px}
+#top{height:48px;background:var(--bar);display:flex;align-items:center;gap:6px;padding:0 10px}
 #top .sp{flex:1}#top select{background:#333;border:0;border-radius:6px;padding:6px}
-#ttl{font-weight:600}
-#scroll{flex:1;overflow:auto;background:#555;padding:12px 0}
-#cv{display:block;margin:0 auto;width:min(100%,1100px);aspect-ratio:1240/1754;background:#fff;touch-action:none}
-#pop,#pop2{display:none;position:absolute;left:66px;top:54px;width:330px;max-height:90%;overflow:auto;background:var(--bar);border-radius:14px;padding:14px;box-shadow:0 6px 24px #000a;z-index:5}
+#ttl{font-weight:600}#zm{min-width:54px;text-align:center;font-size:14px}
+#scroll{flex:1;position:relative;overflow:hidden;background:#555}
+#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#pop,#pop2{display:none;position:absolute;left:66px;top:54px;width:340px;max-height:90%;overflow:auto;background:var(--bar);border-radius:14px;padding:14px;box-shadow:0 6px 24px #000a;z-index:5}
 #pop h4,#pop2 h4{margin:12px 0 6px;font-size:13px;opacity:.7;font-weight:500}
 #pop input[type=range],#pop2 input[type=range]{width:100%}
 .o{font-size:14px;border:1px solid #444;border-radius:8px;padding:8px 10px;margin:0 6px 6px 0}.o.on{border-color:var(--ac);background:#1a3a47}
 #modal{display:none;position:absolute;inset:0;background:#000a;align-items:center;justify-content:center;z-index:9}
+#busy{display:none;position:absolute;inset:0;background:#000c;align-items:center;justify-content:center;z-index:20;font-size:22px}
 .box{background:var(--bar);border-radius:14px;padding:20px;width:min(92%,460px)}
 .box input{width:100%;background:#333;border:0;border-radius:8px;padding:10px;margin:8px 0}
 #tp{display:flex;gap:10px;margin:10px 0;flex-wrap:wrap}
@@ -41,12 +42,14 @@ hr{width:36px;border:0;border-top:1px solid #444;margin:4px 0}
 .tpl canvas{display:block;width:80px;height:113px;margin-bottom:4px}
 .row{display:flex;justify-content:flex-end;gap:10px}.row button{font-size:16px;padding:10px 16px}.pri{background:var(--ac);border-radius:8px}
 </style></head><body>
-<div id="home"><header><h1>✦ InkPad</h1><span>Offline · páginas ilimitadas</span></header><div id="grid"></div></div>
+<div id="home"><header><h1>✦ InkPad</h1><span>Offline · páginas ilimitadas · PDF</span></header><div id="grid"></div></div>
 <div id="editor">
  <div id="side"></div>
  <div id="main">
   <div id="top">
    <span id="ttl" onclick="ren()"></span><span class="sp"></span>
+   <button onclick="zoomBy(1/1.25)">－</button><span id="zm" onclick="fitView()"></span><button onclick="zoomBy(1.25)">＋</button>
+   <button onclick="rot()" title="Girar página">⟳</button>
    <select id="tpl" onchange="page.tpl=this.value;render();save()"></select>
    <button onclick="nav(-1)">◀</button><span id="pg"></span><button onclick="nav(1)">▶</button>
    <button onclick="addPage()">＋</button><button onclick="delPage()">🗑</button>
@@ -55,42 +58,47 @@ hr{width:36px;border:0;border-top:1px solid #444;margin:4px 0}
  </div>
  <div id="pop"></div><div id="pop2"></div>
 </div>
-<div id="modal"></div>
+<div id="modal"></div><div id="busy"></div>
 <input type="file" id="file" accept="image/*" hidden>
+<input type="file" id="pdf" accept="application/pdf" hidden>
 <script>
 window.onerror=(m,u,l)=>{document.body.insertAdjacentHTML('beforeend','<pre style="position:fixed;z-index:99;left:0;right:0;top:0;background:#900;color:#fff;padding:10px;white-space:pre-wrap;user-select:text">Erro: '+m+' (linha '+l+')</pre>')};
 window.onunhandledrejection=e=>window.onerror(String(e.reason),'',0);
 </script>
+<script src="pdf.min.js"></script>
 <script>
 const $=s=>document.querySelector(s);
 const W=1240,H=1754,imgs={},COLORS=['#000000','#c0392b','#2447b5','#0e7c5a','#e0a400'];
 const TPL={blank:'Em branco',lines:'Pautado',grid:'Quadriculado',dots:'Pontilhado'};
-const S={tool:'pen',color:'#2447b5',size:3,penType:'ball',dash:'solid',shape:'rect',finger:false,palm:'max',swap:false,fade:700};
-try{Object.assign(S,JSON.parse(localStorage.getItem('inkpad_s')||'{}'))}catch(_){}
-let notes=[],note,page,pi=0,cur=null,drag=null,pan=null,panId=null,lz=null,lasers=[],ovr=null,lastPen=0,saveT;
-const cv=$('#cv');cv.width=W;cv.height=H;
+const S={tool:'pen',color:'#2447b5',size:2,penType:'ball',dash:'solid',shape:'rect',finger:false,palm:'max',fade:700,bErase:null,bLaser:null};
+try{Object.assign(S,JSON.parse(localStorage.getItem('inkpad_s2')||'{}'))}catch(_){}
+const saveS=()=>{try{localStorage.setItem('inkpad_s2',JSON.stringify({palm:S.palm,fade:S.fade,finger:S.finger,bErase:S.bErase,bLaser:S.bLaser}))}catch(_){}};
+let notes=[],note,page,pi=0,cur=null,drag=null,lz=null,lasers=[],ovr=null,ct=null,act=null,lastPen=0,saveT,sel=null,cal=null,g=null,anim=0,DPR=1,VW=0,VH=0;
+const V={s:1,x:0,y:0},tp={},cv=$('#cv');
+const dim=p=>p.w?[p.w,p.h]:p.o=='l'?[H,W]:[W,H];
+const mkPage=(tpl,o)=>({tpl,o:o||'p',items:[],undo:[],redo:[]});
 
-/* ---------- armazenamento offline (IndexedDB) ---------- */
-const idb=new Promise(r=>{const q=indexedDB.open('inkpad',1);q.onupgradeneeded=()=>q.result.createObjectStore('k');q.onsuccess=()=>r(q.result)});
+/* ---------- armazenamento offline ---------- */
+const idb=new Promise((r,j)=>{const q=indexedDB.open('inkpad',1);q.onupgradeneeded=()=>q.result.createObjectStore('k');q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error)});
 const dbAll=async()=>{const d=await idb;return new Promise(r=>{const q=d.transaction('k').objectStore('k').getAll();q.onsuccess=()=>r(q.result)})};
 const dbPut=async n=>{const d=await idb;return new Promise(r=>{const t=d.transaction('k','readwrite');t.objectStore('k').put(n,n.id);t.oncomplete=r})};
 const dbDel=async id=>{const d=await idb;return new Promise(r=>{const t=d.transaction('k','readwrite');t.objectStore('k').delete(id);t.oncomplete=r})};
-const strip=n=>({...n,pages:n.pages.map(p=>({tpl:p.tpl,items:p.items}))});
-const mkPage=tpl=>({tpl,items:[],undo:[],redo:[]});
+const strip=n=>({...n,pages:n.pages.map(p=>{const{undo,redo,...r}=p;return r})});
 function save(){clearTimeout(saveT);saveT=setTimeout(flush,500)}
 async function flush(){clearTimeout(saveT);if(!note)return;note.mod=Date.now();note.thumb=thumb();await dbPut(strip(note))}
-function thumb(){const t=document.createElement('canvas');t.width=248;t.height=351;const c=t.getContext('2d');c.scale(.2,.2);paint(c,note.pages[0]);return t.toDataURL('image/jpeg',.6)}
+function thumb(){const p=note.pages[0],[w,h]=dim(p),t=document.createElement('canvas');t.width=248;t.height=Math.round(248*h/w);const c=t.getContext('2d');c.scale(248/w,248/w);paint(c,p,w,h);return t.toDataURL('image/jpeg',.6)}
 
 /* ---------- desenho ---------- */
-function bg(c,t){c.fillStyle='#fff';c.fillRect(0,0,W,H);c.strokeStyle=c.fillStyle='#c9d4e0';c.lineWidth=2;
- if(t=='lines')for(let y=130;y<H;y+=56){c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke()}
- if(t=='grid'){for(let y=0;y<H;y+=50){c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke()}for(let x=0;x<W;x+=50){c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke()}}
- if(t=='dots')for(let y=50;y<H;y+=50)for(let x=50;x<W;x+=50)c.fillRect(x-2,y-2,4,4)}
+function getImg(id,src){let im=imgs[id];if(!im){im=imgs[id]=new Image();im.onload=render;im.src=src}return im}
+function bg(c,t,w=W,h=H){c.fillStyle='#fff';c.fillRect(0,0,w,h);c.strokeStyle=c.fillStyle='#c9d4e0';c.lineWidth=2;
+ if(t=='lines')for(let y=130;y<h;y+=56){c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke()}
+ if(t=='grid'){for(let y=0;y<h;y+=50){c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke()}for(let x=0;x<w;x+=50){c.beginPath();c.moveTo(x,0);c.lineTo(x,h);c.stroke()}}
+ if(t=='dots')for(let y=50;y<h;y+=50)for(let x=50;x<w;x+=50)c.fillRect(x-2,y-2,4,4)}
 function style(c,it){c.strokeStyle=it.c;c.lineCap=c.lineJoin='round';c.lineWidth=it.s;
  c.setLineDash(it.d=='dash'?[it.s*3,it.s*3]:it.d=='dot'?[1,it.s*2.2]:[]);
  if(it.t=='hl'){c.globalAlpha=.35;c.lineWidth=it.s*6;c.lineCap='butt'}if(it.t=='pencil')c.globalAlpha=.7}
 function drawItem(c,it){
- if(it.t=='img'){let im=imgs[it.id];if(!im){im=imgs[it.id]=new Image();im.onload=render;im.src=it.src}if(im.complete)c.drawImage(im,it.x,it.y,it.w,it.h);return}
+ if(it.t=='img'){const im=getImg(it.id,it.src);if(im.complete&&im.naturalWidth)c.drawImage(im,it.x,it.y,it.w,it.h);return}
  const p=it.pts;c.save();style(c,it);
  if(it.t=='fountain'&&it.d=='solid'){for(let i=1;i<p.length;i++){c.lineWidth=it.s*(.4+1.2*(p[i][2]||.5));c.beginPath();c.moveTo(p[i-1][0],p[i-1][1]);c.lineTo(p[i][0],p[i][1]);c.stroke()}}
  else{c.beginPath();c.moveTo(p[0][0],p[0][1]);
@@ -98,8 +106,21 @@ function drawItem(c,it){
   else{for(let i=1;i<p.length-1;i++)c.quadraticCurveTo(p[i][0],p[i][1],(p[i][0]+p[i+1][0])/2,(p[i][1]+p[i+1][1])/2);c.lineTo(p[p.length-1][0],p[p.length-1][1])}
   c.stroke()}
  c.restore()}
-function paint(c,p){bg(c,p.tpl);p.items.forEach(i=>drawItem(c,i))}
-function render(){if(!page)return;const c=cv.getContext('2d');paint(c,page);if(cur)drawItem(c,cur);if(lasers.length)drawLasers(c)}
+function paint(c,p,w,h){bg(c,p.tpl,w,h);if(p.bg){const im=getImg(p.bgid,p.bg);if(im.complete&&im.naturalWidth)c.drawImage(im,0,0,w,h)}p.items.forEach(i=>drawItem(c,i))}
+const tr=c=>c.setTransform(DPR*V.s,0,0,DPR*V.s,DPR*V.x,DPR*V.y);
+function render(){if(!page)return;const c=cv.getContext('2d'),[w,h]=dim(page);
+ c.setTransform(1,0,0,1,0,0);c.fillStyle='#555';c.fillRect(0,0,cv.width,cv.height);
+ tr(c);c.save();c.beginPath();c.rect(0,0,w,h);c.clip();paint(c,page,w,h);if(cur)drawItem(c,cur);if(lasers.length)drawLasers(c);c.restore();
+ c.setTransform(DPR,0,0,DPR,0,0);if(sel&&page.items.includes(sel))drawSel(c);
+ $('#zm').textContent=Math.round(V.s/fit()*100)+'%'}
+function drawSel(c){const x=V.x+sel.x*V.s,y=V.y+sel.y*V.s,w=sel.w*V.s,h=sel.h*V.s;c.save();c.strokeStyle='#1a9bc4';c.lineWidth=2;c.setLineDash([8,6]);c.strokeRect(x,y,w,h);c.setLineDash([]);
+ c.fillStyle='#1a9bc4';c.beginPath();c.arc(x+w,y+h,13,0,7);c.fill();c.fillStyle='#d33';c.beginPath();c.arc(x+w,y,13,0,7);c.fill();
+ c.fillStyle='#fff';c.font='bold 15px sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText('✕',x+w,y);c.fillText('⤡',x+w,y+h);c.restore()}
+function drawLasers(c){const now=performance.now();lasers=lasers.filter(l=>l.end==null||now-l.end<S.fade+300);
+ for(const l of lasers){const a=l.end==null?1:Math.max(0,1-Math.max(0,now-l.end-S.fade)/300);
+  c.save();c.globalAlpha=a;c.strokeStyle=l.c;c.lineWidth=l.s;c.lineCap=c.lineJoin='round';c.shadowColor=l.c;c.shadowBlur=18;
+  c.beginPath();c.moveTo(l.pts[0][0],l.pts[0][1]);l.pts.forEach(q=>c.lineTo(q[0],q[1]));c.stroke();c.restore()}}
+function tick(){render();anim=lasers.length?requestAnimationFrame(tick):0}
 function shapePts(sh,a,b){
  if(sh=='line')return[a,b];
  if(sh=='arrow'){const ang=Math.atan2(b[1]-a[1],b[0]-a[0]),L=40,f=r=>[b[0]-L*Math.cos(ang+r),b[1]-L*Math.sin(ang+r)];return[a,b,f(.45),b,f(-.45)]}
@@ -108,69 +129,95 @@ function shapePts(sh,a,b){
  return Array.from({length:49},(_,i)=>{const t=i/48*2*Math.PI;return[cx+rx*Math.cos(t),cy+ry*Math.sin(t)]})}
 const dseg=(p,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],l=dx*dx+dy*dy;let t=l?((p[0]-a[0])*dx+(p[1]-a[1])*dy)/l:0;t=Math.max(0,Math.min(1,t));return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy)};
 const hit=(it,p,r)=>it.pts.some((q,i)=>dseg(p,it.pts[Math.max(0,i-1)],q)<r+it.s*(it.t=='hl'?3:.5));
-function erase(p){const r=S.size*3+12,n=page.items.length;page.items=page.items.filter(i=>i.t=='img'||!hit(i,p,r));if(page.items.length!=n)render()}
+function erase(p){const r=(18+S.size*2)/V.s,n=page.items.length;page.items=page.items.filter(i=>i.t=='img'||!hit(i,p,r));if(page.items.length!=n)render()}
 function snap(){page.undo.push(page.items.slice());page.redo=[]}
-function undo(){if(!page.undo.length)return;page.redo.push(page.items);page.items=page.undo.pop();render();save()}
-function redo(){if(!page.redo.length)return;page.undo.push(page.items);page.items=page.redo.pop();render();save()}
+function undo(){if(!page.undo.length)return;page.redo.push(page.items);page.items=page.undo.pop();sel=null;render();save()}
+function redo(){if(!page.redo.length)return;page.undo.push(page.items);page.items=page.redo.pop();sel=null;render();save()}
 
-/* ---------- ponteiro (caneta desenha, dedo rola a página) ---------- */
-const pt=e=>{const r=cv.getBoundingClientRect(),k=W/r.width;return[(e.clientX-r.left)*k,(e.clientY-r.top)*k,e.pressure||.5]};
+/* ---------- zoom / visualização ---------- */
+const fit=()=>(Math.max(VW,300)-24)/dim(page)[0];
+const clampS=s=>{const f=fit();return Math.min(6*f,Math.max(.3*f,s))};
+function clamp(){const[w,h]=dim(page);V.s=clampS(V.s);const pw=w*V.s,ph=h*V.s,m=60;
+ V.x=pw+2*m<=VW?(VW-pw)/2:Math.min(m,Math.max(VW-pw-m,V.x));
+ V.y=ph+2*m<=VH?(VH-ph)/2:Math.min(m,Math.max(VH-ph-m,V.y))}
+function fitView(){const[w]=dim(page);V.s=fit();V.x=(VW-w*V.s)/2;V.y=12;clamp();render()}
+function zoomBy(f){const cx=VW/2,cy=VH/2,px=(cx-V.x)/V.s,py=(cy-V.y)/V.s;V.s=clampS(V.s*f);V.x=cx-px*V.s;V.y=cy-py*V.s;clamp();render()}
+function resize(){const r=$('#scroll').getBoundingClientRect();if(!r.width)return;DPR=window.devicePixelRatio||1;VW=r.width;VH=r.height;cv.width=Math.round(VW*DPR);cv.height=Math.round(VH*DPR);if(page){clamp();render()}}
+new ResizeObserver(resize).observe($('#scroll'));
+function rot(){if(page.bg)return alert('Páginas de PDF não podem ser giradas.');page.o=page.o=='l'?'p':'l';fitView();save()}
+
+/* ---------- ponteiro ---------- */
+const sp=e=>{const r=cv.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
+const pt=e=>{const q=sp(e);return[(q[0]-V.x)/V.s,(q[1]-V.y)/V.s,e.pressure||.5]};
 function palm(e){if(S.palm=='off')return false;const L=S.palm=='max'?[1500,30]:[600,60];return performance.now()-lastPen<L[0]||Math.max(e.width||0,e.height||0)>L[1]}
-function penMode(e){if(e.pointerType!='pen')return null;const b=e.buttons;let m=(b&2||b&32)?'erase':(b&4)?'laser':null;if(S.swap&&m)m=m=='erase'?'laser':'erase';return m}
-function track(e){if(e.pointerType=='pen'){lastPen=performance.now();const b=$('#bt');if(b)b.textContent='botões = '+e.buttons}}
+function penMode(e){if(e.pointerType=='touch')return null;const b=e.buttons&~1,k=e.button;
+ if(S.bLaser&&b===S.bLaser)return'laser';if(S.bErase&&b===S.bErase)return'erase';
+ if((b&34)||k==2||k==5)return'erase';if((b&4)||k==1)return'laser';return null}
+function track(e){if(e.pointerType=='pen')lastPen=performance.now();
+ if(e.pointerType!='touch'){const b=$('#bt');if(b)b.textContent='botões='+e.buttons+' botão='+e.button;
+  if(cal&&e.type=='pointerdown'&&e.target.closest&&e.target.closest('#calbox')){const v=e.buttons&~1;if(v){S[cal]=v;cal=null;saveS();sPop()}}}}
 document.addEventListener('pointermove',track,true);document.addEventListener('pointerdown',track,true);
 cv.oncontextmenu=e=>e.preventDefault();
-function drawLasers(c){const now=performance.now();lasers=lasers.filter(l=>l.end==null||now-l.end<S.fade+300);
- for(const l of lasers){const a=l.end==null?1:Math.max(0,1-Math.max(0,now-l.end-S.fade)/300);
-  c.save();c.globalAlpha=a;c.strokeStyle=l.c;c.lineWidth=l.s;c.lineCap=c.lineJoin='round';c.shadowColor=l.c;c.shadowBlur=18;
-  c.beginPath();c.moveTo(l.pts[0][0],l.pts[0][1]);l.pts.forEach(q=>c.lineTo(q[0],q[1]));c.stroke();c.restore()}}
-let anim=0;function tick(){render();anim=lasers.length?requestAnimationFrame(tick):0}
-cv.onpointerdown=e=>{$('#pop').style.display=$('#pop2').style.display='none';
- if(e.pointerType=='touch'){if(palm(e)||panId!=null)return;if(!S.finger){panId=e.pointerId;pan=e.clientY;return}}
- cv.setPointerCapture(e.pointerId);const p=pt(e),m=penMode(e);ovr=m;
- const t=m=='erase'?'eraser':m=='laser'?'laser':S.tool;
- if(t=='laser'){lz={pts:[p,p],c:'#ff3b30',s:Math.max(4,S.size*1.5),end:null};lasers.push(lz);if(!anim)tick()}
+const hnd=it=>({x:V.x+(it.x+it.w)*V.s,y1:V.y+it.y*V.s,y2:V.y+(it.y+it.h)*V.s});
+function begin(p,m,q){ovr=m;ct=m=='erase'?'eraser':m=='laser'?'laser':S.tool;const t=ct;
+ if(t=='laser'){lz={pts:[p,p],c:'#ff3b30',s:7/V.s,end:null};lasers.push(lz);if(!anim)tick()}
  else if(t=='pen'||t=='hl')cur={t:t=='hl'?'hl':S.penType,c:S.color,s:S.size,d:t=='hl'?'solid':S.dash,pts:[p,p]};
  else if(t=='shape')cur={t:'ball',c:S.color,s:S.size,d:S.dash,g:1,sh:S.shape,a:p,pts:[p,p]};
  else if(t=='eraser'){snap();erase(p)}
- else if(t=='move'){const it=[...page.items].reverse().find(i=>i.t=='img'&&p[0]>=i.x&&p[0]<=i.x+i.w&&p[1]>=i.y&&p[1]<=i.y+i.h);
-  if(it){snap();const k=page.items.indexOf(it);page.items[k]={...it};drag={it:page.items[k],p,x:it.x,y:it.y,moved:0}}}};
+ else if(t=='move'){
+  if(sel&&page.items.includes(sel)){const h=hnd(sel);
+   if(Math.hypot(q[0]-h.x,q[1]-h.y1)<26){snap();page.items=page.items.filter(i=>i!=sel);sel=null;render();save();return}
+   if(Math.hypot(q[0]-h.x,q[1]-h.y2)<26){snap();const k=page.items.indexOf(sel);page.items[k]=sel={...sel};drag={it:sel,mode:'size',ar:sel.h/sel.w};return}}
+  const it=[...page.items].reverse().find(i=>i.t=='img'&&p[0]>=i.x&&p[0]<=i.x+i.w&&p[1]>=i.y&&p[1]<=i.y+i.h);sel=it||null;
+  if(it){snap();const k=page.items.indexOf(it);page.items[k]=sel={...it};drag={it:sel,mode:'move',p,x:it.x,y:it.y}}
+  render()}}
+function finish(){if(lz){lz.end=performance.now();lz=null;if(!anim)tick()}
+ if(cur){snap();page.items.push(cur);cur=null;render();save()}
+ if(drag){drag=null;render();save()}
+ if(ct=='eraser')save();ct=null;ovr=null}
+function cancelDraw(){if(lz){lz.end=performance.now();lz=null}cur=null;drag=null;act=null;ct=null;ovr=null;render()}
+function startPinch(){const k=Object.keys(tp);if(k.length<2)return;const a=tp[k[0]],b=tp[k[1]];g={d:Math.hypot(a.x-b.x,a.y-b.y)||1,cx:(a.x+b.x)/2,cy:(a.y+b.y)/2,s:V.s,x:V.x,y:V.y}}
+function gesture(){const k=Object.keys(tp);if(k.length<2||!g)return;const a=tp[k[0]],b=tp[k[1]],d=Math.hypot(a.x-b.x,a.y-b.y)||1,cx=(a.x+b.x)/2,cy=(a.y+b.y)/2,px=(g.cx-g.x)/g.s,py=(g.cy-g.y)/g.s;
+ V.s=clampS(g.s*d/g.d);V.x=cx-px*V.s;V.y=cy-py*V.s;clamp();render()}
+cv.onpointerdown=e=>{$('#pop').style.display=$('#pop2').style.display='none';
+ if(e.pointerType=='touch'){
+  if(palm(e)||(act!=null&&!(act in tp)))return;
+  cv.setPointerCapture(e.pointerId);tp[e.pointerId]={x:e.clientX,y:e.clientY};
+  if(Object.keys(tp).length>=2){cancelDraw();startPinch();return}
+  if(!S.finger)return}
+ else cv.setPointerCapture(e.pointerId);
+ act=e.pointerId;begin(pt(e),penMode(e),sp(e))};
 cv.onpointermove=e=>{
- if(pan!=null&&e.pointerId==panId){if(palm(e)){pan=panId=null;return}$('#scroll').scrollTop-=e.clientY-pan;pan=e.clientY;return}
- for(const ev of(e.getCoalescedEvents?e.getCoalescedEvents():[e])){const p=pt(ev);
+ if(e.pointerType=='touch'){const t=tp[e.pointerId];if(!t)return;
+  if(palm(e)){delete tp[e.pointerId];g=null;return}
+  if(Object.keys(tp).length>=2){t.x=e.clientX;t.y=e.clientY;gesture();return}
+  if(!S.finger){V.x+=e.clientX-t.x;V.y+=e.clientY-t.y;t.x=e.clientX;t.y=e.clientY;clamp();render();return}
+  t.x=e.clientX;t.y=e.clientY}
+ if(act!==e.pointerId)return;
+ for(const ev of(e.getCoalescedEvents?e.getCoalescedEvents():[e])){const p=pt(ev),m=penMode(ev);
+  if(m&&m!==ovr){finish();begin(p,m,sp(ev));continue}
   if(lz){lz.pts.push(p);render()}
   else if(cur){
    if(cur.sh){cur.pts=shapePts(cur.sh,cur.a,p);render()}
    else{cur.pts.push(p);
-    if(cur.d=='solid'&&cur.t!='hl'){const c=cv.getContext('2d'),n=cur.pts.length;c.save();style(c,cur);if(cur.t=='fountain')c.lineWidth=cur.s*(.4+1.2*p[2]);c.beginPath();c.moveTo(cur.pts[n-2][0],cur.pts[n-2][1]);c.lineTo(p[0],p[1]);c.stroke();c.restore()}
+    if(cur.d=='solid'&&cur.t!='hl'){const c=cv.getContext('2d'),n=cur.pts.length;c.save();tr(c);style(c,cur);if(cur.t=='fountain')c.lineWidth=cur.s*(.4+1.2*p[2]);c.beginPath();c.moveTo(cur.pts[n-2][0],cur.pts[n-2][1]);c.lineTo(p[0],p[1]);c.stroke();c.restore()}
     else render()}}
-  else if((ovr=='erase'||S.tool=='eraser')&&(ev.buttons&1))erase(p);
-  else if(drag){drag.it.x=drag.x+p[0]-drag.p[0];drag.it.y=drag.y+p[1]-drag.p[1];drag.moved=1;render()}}};
-cv.onpointerup=cv.onpointercancel=e=>{if(e.pointerId==panId)pan=panId=null;
- if(lz){lz.end=performance.now();lz=null;if(!anim)tick()}
- if(cur){snap();page.items.push(cur);cur=null;render();save()}
- if(drag){if(!drag.moved&&confirm('Remover esta imagem?'))page.items=page.items.filter(i=>i!=drag.it);drag=null;render();save()}
- if(ovr=='erase'||S.tool=='eraser')save();ovr=null};
-
-/* ---------- configurações ---------- */
-function sset(k,v){S[k]=v;try{localStorage.setItem('inkpad_s',JSON.stringify({palm:S.palm,swap:S.swap,fade:S.fade,finger:S.finger}))}catch(_){}sPop();side()}
-function sPop(t){const P=$('#pop2'),vis=P.style.display=='block';if(t&&vis){P.style.display='none';return}if(!t&&!vis)return;
- const B=(k,v,l)=>`<button class="o ${S[k]===v?'on':''}" onclick="sset('${k}',${JSON.stringify(v).replace(/"/g,"'")})">${l}</button>`;
- P.innerHTML=`<b>Configurações</b><h4>Rejeição de palma</h4>`+B('palm','max','Máxima')+B('palm','normal','Normal')+B('palm','off','Desligada')+
- `<h4>Dedo</h4>`+B('finger',false,'Só rola a página')+B('finger',true,'Também desenha')+
- `<h4>Botões da caneta</h4>`+B('swap',false,'1 apaga · 2 marca que some')+B('swap',true,'1 marca que some · 2 apaga')+
- `<h4>Marca some após ${S.fade} ms</h4><input type=range min=200 max=3000 step=100 value=${S.fade} oninput="S.fade=+this.value;this.previousElementSibling.textContent='Marca some após '+S.fade+' ms'" onchange="sset('fade',S.fade)">`+
- `<h4>Teste dos botões</h4><div id=bt class=o>Segure um botão e passe a caneta</div>`;
- $('#pop').style.display='none';P.style.display='block'}
+  else if(ct=='eraser')erase(p);
+  else if(drag){const it=drag.it;
+   if(drag.mode=='move'){it.x=drag.x+p[0]-drag.p[0];it.y=drag.y+p[1]-drag.p[1]}
+   else{it.w=Math.max(40,p[0]-it.x);it.h=it.w*drag.ar}
+   render()}}};
+cv.onpointerup=cv.onpointercancel=e=>{delete tp[e.pointerId];if(Object.keys(tp).length<2)g=null;
+ if(act===e.pointerId){finish();act=null}};
 
 /* ---------- barra lateral e popover ---------- */
 function side(){const T=(t,i)=>`<button class="b ${S.tool==t?'on':''}" onclick="pick('${t}')">${i}</button>`;
  $('#side').innerHTML=`<button class=b onclick=goHome()>‹</button><button class=b onclick=undo()>↶</button><button class=b onclick=redo()>↷</button><hr>`+
  T('pen','✒️')+T('hl','🖍️')+T('eraser','🧽')+T('shape','△')+T('move','✥')+
- `<button class=b onclick="$('#file').click()">🖼️</button><button class="b ${S.finger?'on':''}" onclick="S.finger=!S.finger;side()" title="Desenhar com o dedo">✋</button><hr>`+
+ `<button class=b onclick="$('#file').click()">🖼️</button><button class="b ${S.finger?'on':''}" onclick="sset('finger',!S.finger)" title="Desenhar com o dedo">✋</button><hr>`+
  COLORS.map(c=>`<i class="dot ${S.color==c?'on':''}" style="background:${c}" onclick="setColor('${c}')"></i>`).join('')+
  `<input type=color value="${S.color}" onchange="setColor(this.value)"><hr><button class=b onclick="sPop(true)">⚙️</button>`}
-function pick(t){if(S.tool==t&&['pen','hl','eraser','shape'].includes(t))return pop(true);S.tool=t;$('#pop').style.display=$('#pop2').style.display='none';side()}
+function pick(t){if(S.tool==t&&['pen','hl','eraser','shape'].includes(t))return pop(true);S.tool=t;if(t!='move')sel=null;$('#pop').style.display=$('#pop2').style.display='none';side();render()}
 function setColor(c){S.color=c;side();pop()}
 function set(k,v){S[k]=v;pop()}
 const opts=(k,o)=>Object.entries(o).map(([v,l])=>`<button class="o ${S[k]==v?'on':''}" onclick="set('${k}','${v}')">${l}</button>`).join('');
@@ -180,40 +227,63 @@ function pop(toggle){const P=$('#pop'),vis=P.style.display=='block';if(toggle&&v
  if(t=='pen')h+=sec('Ponta',opts('penType',{ball:'Esferográfica',fountain:'Tinteiro',pencil:'Lápis'}));
  if(t=='shape')h+=sec('Forma',opts('shape',{line:'Linha',arrow:'Seta',rect:'Retângulo',ellipse:'Elipse'}));
  if(t=='pen'||t=='shape')h+=sec('Tipo de linha',opts('dash',{solid:'Contínua',dash:'Tracejada',dot:'Pontilhada'}));
- h+=sec(t=='eraser'?'Tamanho':'Espessura',`<input type=range min=1 max=20 value=${S.size} oninput="S.size=+this.value">`);
+ h+=sec(t=='eraser'?'Tamanho':'Espessura',`<input type=range min=.5 max=20 step=.5 value=${S.size} oninput="S.size=+this.value">`);
  if(t!='eraser')h+=sec('Cor',COLORS.map(c=>`<i class="dot ${S.color==c?'on':''}" style="background:${c};display:inline-block" onclick="setColor('${c}')"></i>`).join(''));
  P.innerHTML=h;P.style.display='block';$('#pop2').style.display='none'}
 
-/* ---------- imagens ---------- */
-$('#file').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
- r.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,1200/Math.max(im.width,im.height)),c=document.createElement('canvas');
+/* ---------- configurações ---------- */
+function sset(k,v){S[k]=v;saveS();sPop();side()}
+function sPop(t){const P=$('#pop2'),vis=P.style.display=='block';if(t&&vis){P.style.display='none';return}if(!t&&!vis)return;
+ const B=(k,v,l)=>`<button class="o ${S[k]===v?'on':''}" onclick="sset('${k}',${JSON.stringify(v).replace(/"/g,"'")})">${l}</button>`;
+ P.innerHTML=`<b>Configurações</b><h4>Rejeição de palma</h4>`+B('palm','max','Máxima')+B('palm','normal','Normal')+B('palm','off','Desligada')+
+ `<h4>Dedo</h4>`+B('finger',false,'Move e dá zoom')+B('finger',true,'Também desenha')+
+ `<h4>Botões da caneta (1 apaga · 2 marca que some)</h4><button class=o onclick="cal='bErase';sPop()">Calibrar botão 1</button><button class=o onclick="cal='bLaser';sPop()">Calibrar botão 2</button><button class=o onclick="S.bErase=S.bLaser=null;saveS();sPop()">Padrão</button>`+
+ `<div id=calbox class=o style="padding:16px">${cal?'Segure o botão '+(cal=='bErase'?'1':'2')+' da caneta e toque AQUI':'Botão 1 = '+(S.bErase||'padrão')+' · Botão 2 = '+(S.bLaser||'padrão')}</div><div id=bt class=o>Teste: passe a caneta aqui</div>`+
+ `<h4>Marca some após ${S.fade} ms</h4><input type=range min=200 max=3000 step=100 value=${S.fade} oninput="S.fade=+this.value;this.previousElementSibling.textContent='Marca some após '+S.fade+' ms'" onchange="sset('fade',S.fade)">`;
+ $('#pop').style.display='none';P.style.display='block'}
+
+/* ---------- imagens e PDF ---------- */
+$('#file').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;const r=new FileReader();
+ r.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,2000/Math.max(im.width,im.height)),c=document.createElement('canvas');
   c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);
-  const w=500,h=w*c.height/c.width,y=$('#scroll').scrollTop*(W/cv.clientWidth)+150;
-  snap();page.items.push({t:'img',id:Date.now()+'',src:c.toDataURL('image/jpeg',.85),x:(W-w)/2,y,w,h});S.tool='move';side();render();save()};im.src=r.result};
- r.readAsDataURL(f);e.target.value=''};
+  const w=Math.min(600,dim(page)[0]*.6),h=w*c.height/c.width,x=(VW/2-V.x)/V.s-w/2,y=(VH/2-V.y)/V.s-h/2;
+  snap();const it={t:'img',id:Date.now()+'',src:c.toDataURL('image/jpeg',.9),x,y,w,h};page.items.push(it);sel=it;S.tool='move';side();render();save()};im.src=r.result};
+ r.readAsDataURL(f)};
+$('#pdf').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
+ if(!window.pdfjsLib)return alert('Leitor de PDF não encontrado. Confira o package.json e o build.yml e rode o build de novo.');
+ pdfjsLib.GlobalWorkerOptions.workerSrc='pdf.worker.min.js';const ov=$('#busy');ov.style.display='flex';ov.textContent='Abrindo PDF…';
+ try{const doc=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
+  const n={id:Date.now()+'',title:f.name.replace(/\.pdf$/i,''),mod:Date.now(),thumb:'',pages:[]};
+  for(let i=1;i<=doc.numPages;i++){ov.textContent=`Importando PDF ${i}/${doc.numPages}…`;
+   const pg=await doc.getPage(i),v0=pg.getViewport({scale:1}),v=pg.getViewport({scale:1800/v0.width}),c=document.createElement('canvas');
+   c.width=v.width;c.height=v.height;await pg.render({canvasContext:c.getContext('2d'),viewport:v}).promise;
+   const p=mkPage('blank');p.w=W;p.h=Math.round(W*v0.height/v0.width);p.bg=c.toDataURL('image/jpeg',.82);p.bgid=n.id+'_'+i;n.pages.push(p)}
+  notes.unshift(n);await dbPut(strip(n));ov.style.display='none';openNote(n)}
+ catch(err){ov.style.display='none';alert('Erro no PDF: '+err)}};
 
 /* ---------- páginas ---------- */
-function setPage(){page=note.pages[pi];$('#pg').textContent=`${pi+1}/${note.pages.length}`;$('#ttl').textContent=note.title;$('#tpl').value=page.tpl;$('#scroll').scrollTop=0;render()}
+function setPage(){page=note.pages[pi];sel=null;$('#pg').textContent=`${pi+1}/${note.pages.length}`;$('#ttl').textContent=note.title;$('#tpl').value=page.tpl;fitView()}
 function nav(d){const n=pi+d;if(n<0||n>=note.pages.length)return;pi=n;setPage()}
-function addPage(){note.pages.splice(pi+1,0,mkPage(page.tpl));pi++;setPage();save()}
+function addPage(){const q=page.bg?mkPage('blank'):mkPage(page.tpl,page.o);note.pages.splice(pi+1,0,q);pi++;setPage();save()}
 function delPage(){if(note.pages.length<2)return alert('A nota precisa ter ao menos 1 página.');if(!confirm('Apagar esta página?'))return;note.pages.splice(pi,1);pi=Math.min(pi,note.pages.length-1);setPage();save()}
 function ren(){const t=prompt('Título da nota',note.title);if(t){note.title=t;$('#ttl').textContent=t;save()}}
 $('#tpl').innerHTML=Object.entries(TPL).map(([k,v])=>`<option value=${k}>${v}</option>`).join('');
 
 /* ---------- telas ---------- */
-function openNote(n){note=n;pi=0;$('#home').style.display='none';$('#editor').style.display='flex';side();setPage()}
-async function goHome(){await flush();note=page=null;$('#editor').style.display='none';renderHome()}
+function openNote(n){note=n;pi=0;$('#home').style.display='none';$('#editor').style.display='flex';side();resize();setPage()}
+async function goHome(){await flush();note=page=null;sel=null;$('#editor').style.display='none';renderHome()}
 function renderHome(){$('#home').style.display='block';
- $('#grid').innerHTML=`<div class="card new"><div class=th onclick=newNote()>＋</div><p>Nova nota</p></div>`+
+ $('#grid').innerHTML=`<div class="card new"><div class=th onclick=newNote()>＋</div><p>Nova nota</p></div><div class="card new"><div class=th style="font-size:44px" onclick="$('#pdf').click()">📄</div><p>Importar PDF</p></div>`+
  notes.sort((a,b)=>b.mod-a.mod).map(n=>`<div class=card><div class=th onclick="openNote(notes.find(x=>x.id=='${n.id}'))">${n.thumb?`<img src="${n.thumb}">`:''}</div><div>${n.title.replace(/</g,'&lt;')}</div><small>${new Date(n.mod).toLocaleDateString('pt-BR')} · ${n.pages.length} pág.</small><button onclick="rename('${n.id}')">✎</button><button onclick="del('${n.id}')">🗑</button></div>`).join('')}
 async function rename(id){const n=notes.find(x=>x.id==id),t=prompt('Novo título',n.title);if(t){n.title=t;await dbPut(strip(n));renderHome()}}
 async function del(id){if(!confirm('Apagar esta nota?'))return;notes=notes.filter(x=>x.id!=id);await dbDel(id);renderHome()}
-function newNote(){const m=$('#modal');let tpl='blank';
- m.innerHTML=`<div class=box><h3>Nova nota</h3><input id=nt value="Nota sem nome"><div id=tp></div><div class=row><button onclick="$('#modal').style.display='none'">Cancelar</button><button class=pri id=ok>Criar</button></div></div>`;
+function newNote(){const m=$('#modal');let tpl='blank',o='p';
+ m.innerHTML=`<div class=box><h3>Nova nota</h3><input id=nt value="Nota sem nome"><div id=tp></div><div id=or><button class="o on" data-o=p>Vertical</button><button class=o data-o=l>Horizontal</button></div><div class=row><button onclick="$('#modal').style.display='none'">Cancelar</button><button class=pri id=ok>Criar</button></div></div>`;
  const tp=$('#tp');Object.entries(TPL).forEach(([k,v])=>{const d=document.createElement('div');d.className='tpl'+(k==tpl?' on':'');
   const c=document.createElement('canvas');c.width=124;c.height=175;const x=c.getContext('2d');x.scale(.1,.1);bg(x,k);d.append(c,v);
   d.onclick=()=>{tpl=k;[...tp.children].forEach(e=>e.classList.remove('on'));d.classList.add('on')};tp.append(d)});
- $('#ok').onclick=async()=>{const n={id:Date.now()+'',title:$('#nt').value||'Nota',mod:Date.now(),thumb:'',pages:[mkPage(tpl)]};notes.unshift(n);m.style.display='none';await dbPut(strip(n));openNote(n)};
+ $('#or').onclick=e=>{const b=e.target.closest('button');if(!b)return;o=b.dataset.o;[...$('#or').children].forEach(x=>x.classList.toggle('on',x==b))};
+ $('#ok').onclick=async()=>{const n={id:Date.now()+'',title:$('#nt').value||'Nota',mod:Date.now(),thumb:'',pages:[mkPage(tpl,o)]};notes.unshift(n);m.style.display='none';await dbPut(strip(n));openNote(n)};
  m.style.display='flex'}
 renderHome();
 (async()=>{try{try{navigator.storage.persist()}catch(_){}
